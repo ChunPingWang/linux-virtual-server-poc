@@ -1,0 +1,142 @@
+# ============================================================================
+# LVS PoC - Docker Compose (DSR / DR Mode)
+# ============================================================================
+#
+# Network: 192.168.100.0/24
+# VIP:     192.168.100.100
+#
+# Architecture:
+#   Client (192.168.100.50)
+#     → VIP (192.168.100.100) on Director (IPVS DR mode)
+#       → Real Server 1 (192.168.100.21, weight=3)
+#       → Real Server 2 (192.168.100.22, weight=2)
+#     ← Direct Server Return (response bypasses Director)
+# ============================================================================
+
+networks:
+  lvs-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.100.0/24
+          gateway: 192.168.100.1
+
+services:
+  # ──────────────────────────────────────────────
+  # LVS Director 1 (MASTER)
+  # ──────────────────────────────────────────────
+  lvs-director-1:
+    build:
+      context: ./docker/director
+    container_name: lvs-director-1
+    hostname: lvs-director-1
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      lvs-net:
+        ipv4_address: 192.168.100.10
+    environment:
+      - DIRECTOR_IP=192.168.100.10
+      - KEEPALIVED_ROLE=MASTER
+      - KEEPALIVED_PRIORITY=100
+      - VIP=192.168.100.100
+      - REAL_SERVERS_CSV=192.168.100.21:3,192.168.100.22:2
+    volumes:
+      - /lib/modules:/lib/modules:ro
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.vs.conntrack=1
+
+  # ──────────────────────────────────────────────
+  # LVS Director 2 (BACKUP)
+  # ──────────────────────────────────────────────
+  lvs-director-2:
+    build:
+      context: ./docker/director
+    container_name: lvs-director-2
+    hostname: lvs-director-2
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      lvs-net:
+        ipv4_address: 192.168.100.11
+    environment:
+      - DIRECTOR_IP=192.168.100.11
+      - KEEPALIVED_ROLE=BACKUP
+      - KEEPALIVED_PRIORITY=90
+      - VIP=192.168.100.100
+      - REAL_SERVERS_CSV=192.168.100.21:3,192.168.100.22:2
+    volumes:
+      - /lib/modules:/lib/modules:ro
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.vs.conntrack=1
+
+  # ──────────────────────────────────────────────
+  # Real Server 1 (weight=3)
+  # ──────────────────────────────────────────────
+  real-server-1:
+    build:
+      context: ./docker/realserver
+    container_name: real-server-1
+    hostname: real-server-1
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lvs-net:
+        ipv4_address: 192.168.100.21
+    environment:
+      - RS_IP=192.168.100.21
+      - RS_NAME=real-server-1
+      - VIP=192.168.100.100
+    depends_on:
+      - lvs-director-1
+      - lvs-director-2
+
+  # ──────────────────────────────────────────────
+  # Real Server 2 (weight=2)
+  # ──────────────────────────────────────────────
+  real-server-2:
+    build:
+      context: ./docker/realserver
+    container_name: real-server-2
+    hostname: real-server-2
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      lvs-net:
+        ipv4_address: 192.168.100.22
+    environment:
+      - RS_IP=192.168.100.22
+      - RS_NAME=real-server-2
+      - VIP=192.168.100.100
+    depends_on:
+      - lvs-director-1
+      - lvs-director-2
+
+  # ──────────────────────────────────────────────
+  # Test Client
+  # ──────────────────────────────────────────────
+  client:
+    build:
+      context: ./docker/client
+    container_name: lvs-client
+    hostname: client
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    networks:
+      lvs-net:
+        ipv4_address: 192.168.100.50
+    depends_on:
+      - real-server-1
+      - real-server-2
+    stdin_open: true
+    tty: true

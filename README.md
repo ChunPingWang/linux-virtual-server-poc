@@ -4,7 +4,40 @@
 
 ---
 
+## 文件導覽
+
+本文件共分三大部分，你可以根據自己的程度選擇閱讀路徑：
+
+```
+📖 初學者建議路徑：
+
+  第一部分：理論基礎 (Sections 1-7)
+  「為什麼需要 LB？」→ 核心概念 → 架構圖 → DSR 原理 → VRRP HA → WRR 排程
+       │
+       ▼
+  第二部分：動手實作 (Sections 8-12)
+  環境安裝 → 網路規劃 → 快速啟動 → Step-by-Step 操作教學 → 實測結果驗證
+       │
+       ▼
+  第三部分：參考手冊 (Sections 13-17)
+  管理指令 → 測試腳本 → 容器設計 → 疑難排解 → 擴充方向
+
+  附錄：VM 平台選型紀錄 / Docker 與生產環境差異分析
+```
+
+| 你的目標 | 建議閱讀 |
+|----------|---------|
+| **快速跑起來** | 第 8 節 → 第 10 節（快速啟動，5 分鐘完成） |
+| **完整理解原理 + 動手做** | 從頭讀到第 12 節（理論 + 實作 + 驗證） |
+| **只想查指令 / 排錯** | 直接跳到第 13-16 節 |
+| **了解為什麼用 Docker 而非 VM** | 附錄 A |
+| **了解 PoC 與生產環境的差異** | 附錄 B |
+
+---
+
 ## 目錄
+
+**第一部分：理論基礎**
 
 1. [為什麼需要 Load Balancer？](#1-為什麼需要-load-balancer)
 2. [核心概念速覽](#2-核心概念速覽)
@@ -13,18 +46,27 @@
 5. [DSR 模式深度解析](#5-dsr-模式深度解析)
 6. [VRRP 與 Keepalived 高可用](#6-vrrp-與-keepalived-高可用)
 7. [WRR 排程演算法](#7-wrr-排程演算法)
+
+**第二部分：動手實作**
+
 8. [環境需求與安裝](#8-環境需求與安裝)
 9. [叢集架構圖與網路規劃](#9-叢集架構圖與網路規劃)
 10. [快速啟動](#10-快速啟動)
-11. [叢集管理指令](#11-叢集管理指令)
-12. [測試腳本說明](#12-測試腳本說明)
-13. [容器設計詳解](#13-容器設計詳解)
-14. [疑難排解](#14-疑難排解)
-15. [擴充方向](#15-擴充方向)
-16. [PoC 實測結果](#16-poc-實測結果)
-17. [虛擬化平台評比：VMware vs KVM vs VirtualBox vs Docker](#17-虛擬化平台評比vmware-vs-kvm-vs-virtualbox-vs-docker)
-18. [Docker Compose 做 LVS：能力邊界與生產差異分析](#18-docker-compose-做-lvs能力邊界與生產差異分析)
-19. [初學者完整操作教學 (Step-by-Step)](#19-初學者完整操作教學-step-by-step)
+11. [初學者完整操作教學 (Step-by-Step)](#11-初學者完整操作教學-step-by-step)
+12. [PoC 實測結果](#12-poc-實測結果)
+
+**第三部分：參考手冊**
+
+13. [叢集管理指令](#13-叢集管理指令)
+14. [測試腳本說明](#14-測試腳本說明)
+15. [容器設計詳解](#15-容器設計詳解)
+16. [疑難排解](#16-疑難排解)
+17. [擴充方向](#17-擴充方向)
+
+**附錄**
+
+- [附錄 A：虛擬化平台評比 — VMware vs KVM vs VirtualBox vs Docker](#附錄-a虛擬化平台評比--vmware-vs-kvm-vs-virtualbox-vs-docker)
+- [附錄 B：Docker Compose 做 LVS — 能力邊界與生產差異分析](#附錄-bdocker-compose-做-lvs--能力邊界與生產差異分析)
 
 ---
 
@@ -223,6 +265,8 @@ net.ipv4.conf.all.arp_announce = 2  # ARP 公告時用最適合的 IP
      Director-2 待命                 亞秒級 Failover！
 ```
 
+**VRRP 心跳機制**：MASTER 每秒（`advert_int 1`）向 BACKUP 發送 VRRP multicast 封包，表示「我還活著」。當 BACKUP 連續 3 秒收不到心跳，就會判定 MASTER 已故障並接管 VIP。
+
 ### 6.3 Keepalived 做的三件事
 
 | 功能 | 說明 |
@@ -290,6 +334,8 @@ sudo modprobe ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh
 > - 不需要 VMware/VirtualBox/KVM
 > - IPVS 在 Linux 核心層運作，privileged container 可完美支援 DSR 模式
 > - 網路隔離透過 Docker bridge network 實現
+>
+> 想了解 Docker 與 VM 方案的詳細比較，請參閱[附錄 A](#附錄-a虛擬化平台評比--vmware-vs-kvm-vs-virtualbox-vs-docker)。
 
 ---
 
@@ -321,6 +367,8 @@ Network: 192.168.100.0/24
 
 ## 10. 快速啟動
 
+> 想直接動手？6 個指令跑完整個 PoC。想看詳細步驟說明請往下到[第 11 節](#11-初學者完整操作教學-step-by-step)。
+
 ```bash
 # 1. Clone 專案
 cd service-load-balancer
@@ -344,657 +392,7 @@ chmod +x manage.sh
 
 ---
 
-## 11. 叢集管理指令
-
-```bash
-./manage.sh up              # 啟動所有容器 (docker compose up)
-./manage.sh down            # 停止所有容器
-./manage.sh destroy         # 銷毀所有容器和映像檔 (⚠️ 不可逆)
-./manage.sh status          # 顯示叢集狀態
-./manage.sh test            # 從 Client 執行完整測試
-./manage.sh exec <container># 進入指定容器的 shell
-./manage.sh failover        # 模擬 Director 故障
-./manage.sh recover         # 恢復 Director
-./manage.sh ipvs            # 顯示 IPVS 路由表
-./manage.sh logs            # 顯示 Keepalived 日誌
-```
-
----
-
-## 12. 測試腳本說明
-
-從 Client 容器內執行：
-
-```bash
-# 進入 Client 容器
-docker exec -it lvs-client bash
-
-# 完整測試套件
-test-all.sh
-
-# 個別測試
-test-basic.sh              # 基本連線測試
-test-distribution.sh 100   # 負載分配 (100 次請求)
-test-performance.sh 10 500 # 效能測試 (10 並發，500 請求)
-test-failover.sh 60        # Failover 監控 (60 秒)
-test-dsr-verify.sh         # DSR 封包驗證
-```
-
-### DSR 驗證
-
-確認 DSR 運作正常：
-
-```bash
-# 方法 1：從 Client 容器執行 DSR 驗證腳本
-docker exec lvs-client test-dsr-verify.sh
-
-# 方法 2：檢查 Director 的 IPVS 統計
-docker exec lvs-director-1 ipvsadm -Ln --stats
-# 觀察 OutPkts=0 和 OutBytes=0 → 證明 Director 不轉發回應封包
-```
-
-預期行為：
-- **Request 路徑**：Client (`.50`) → VIP (`.100`) on Director
-- **Response 路徑**：Real Server (`.21/.22`) → Client (`.50`) **直接回**
-- Director **只看到 Request，看不到 Response**（`OutPkts=0`）
-
----
-
-## 13. 容器設計詳解
-
-### 13.1 Director 容器 (`docker/director/`)
-
-```
-Dockerfile: Ubuntu 22.04 + ipvsadm + keepalived
-                    │
-entrypoint.sh:      ▼
-偵測 Service Network 介面 (eth0)
-         │
-         ▼
-依據環境變數動態生成 keepalived.conf：
-  ├── VRRP Instance (VIP 漂移)
-  ├── Virtual Server (IPVS DR 模式)
-  ├── Real Server 定義 (含 weight)
-  └── HTTP Health Check (/health)
-         │
-         ▼
-建立 Sorry Server (所有 RS 掛了時的備援頁面)
-         │
-         ▼
-啟動 Keepalived (foreground, 作為容器主程序)
-```
-
-環境變數：
-| 變數 | 說明 | 範例 |
-|------|------|------|
-| `KEEPALIVED_ROLE` | MASTER 或 BACKUP | `MASTER` |
-| `KEEPALIVED_PRIORITY` | VRRP 優先權 | `100` |
-| `VIP` | 虛擬 IP | `192.168.100.100` |
-| `REAL_SERVERS_CSV` | RS 清單 (IP:weight) | `192.168.100.21:3,192.168.100.22:2` |
-
-### 13.2 Real Server 容器 (`docker/realserver/`)
-
-```
-Dockerfile: Nginx 1.24 + iproute2
-                    │
-entrypoint.sh:      ▼
-ARP 抑制設定：
-  ├── arp_ignore = 1
-  └── arp_announce = 2
-    │
-    ▼
-VIP 綁在 loopback (lo:0)：
-  └── ip addr add VIP/32 dev lo
-    │
-    ▼
-Nginx 設定：
-  ├── /health → 200 OK
-  ├── /api/info.json → 伺服器資訊 (JSON)
-  └── / → 首頁 (顯示伺服器身份)
-    │
-    ▼
-啟動 Nginx (foreground)
-```
-
-### 13.3 Client 容器 (`docker/client/`)
-
-安裝 `curl`, `ab` (Apache Bench), `tcpdump`, `jq`，並部署 5 個測試腳本到 `/usr/local/bin/`。
-
----
-
-## 14. 疑難排解
-
-### VIP 未分配
-
-```bash
-docker logs lvs-director-1       # 檢查 Keepalived 日誌
-docker exec lvs-director-1 ip addr show  # 確認 VIP 是否出現
-```
-
-### Real Server 沒收到流量
-
-```bash
-docker exec real-server-1 rs-status.sh   # 檢查 VIP on lo、ARP 設定
-docker exec real-server-1 curl -s http://localhost/health  # 確認 Nginx 正常
-docker exec real-server-1 cat /proc/sys/net/ipv4/conf/all/arp_ignore   # 必須是 1
-docker exec real-server-1 cat /proc/sys/net/ipv4/conf/all/arp_announce # 必須是 2
-```
-
-### IPVS 顯示 0 連線
-
-```bash
-docker exec lvs-director-1 ipvsadm -Ln           # 確認 Real Server 已列出
-docker exec lvs-director-1 ipvsadm -Ln --stats   # 確認封包計數
-```
-
-### IPVS 核心模組未載入
-
-如果 Director 啟動後 ipvsadm 報錯：
-```bash
-sudo modprobe ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh
-# 永久載入：
-echo -e "ip_vs\nip_vs_rr\nip_vs_wrr\nip_vs_sh" | sudo tee /etc/modules-load.d/ipvs.conf
-```
-
----
-
-## 15. 擴充方向
-
-### 新增 HTTPS (TLS Termination at RS)
-
-```bash
-# 在每台 RS 上設定 Nginx SSL
-# 更新 keepalived: virtual_server VIP 443 + lb_kind DR
-```
-
-### 切換到 IPVS Tunnel 模式 (跨子網 DSR)
-
-```
-# 在 keepalived.conf 中改:
-lb_kind DR  →  lb_kind TUN
-# RS 需要設定 ipip tunnel 取代 lo VIP
-```
-
-### 加入 Prometheus 監控
-
-```bash
-# 在 Director 安裝 ipvs_exporter
-# 在所有節點安裝 node_exporter
-# 另起一台 VM 部署 Prometheus + Grafana
-```
-
-### 增加 Real Server
-
-在 `docker-compose.yml` 中新增一個 Real Server 定義，並更新 Directors 的 `REAL_SERVERS_CSV`：
-
-```yaml
-# 新增 real-server-3
-real-server-3:
-  build:
-    context: ./docker/realserver
-  container_name: real-server-3
-  hostname: real-server-3
-  privileged: true
-  cap_add:
-    - NET_ADMIN
-  networks:
-    lvs-net:
-      ipv4_address: 192.168.100.23
-  environment:
-    - RS_IP=192.168.100.23
-    - RS_NAME=real-server-3
-    - VIP=192.168.100.100
-
-# 更新 Directors 的 REAL_SERVERS_CSV:
-# REAL_SERVERS_CSV=192.168.100.21:3,192.168.100.22:2,192.168.100.23:1
-```
-
-然後重新啟動叢集：`./manage.sh down && ./manage.sh up`
-
----
-
-## 16. PoC 實測結果
-
-以下是實際執行的測試結果：
-
-### 基本連線測試
-
-```
-✅ VIP 192.168.100.100 可達 (0% packet loss)
-✅ HTTP 200 OK
-✅ 10 次請求交替分配到 real-server-1 和 real-server-2
-```
-
-### 負載分配 (WRR 3:2)
-
-```
-real-server-1 : 30 requests (60.0%) ██████████████████████████████
-real-server-2 : 20 requests (40.0%) ████████████████████
-Total: 50/50 成功
-```
-
-精確符合 WRR 權重 3:2 = 60%:40% 的預期！
-
-### 效能測試 (Apache Bench)
-
-```
-Requests per second: 18,538 req/sec
-Failed requests:     0
-Time per request:    0.054 ms (across all concurrent)
-```
-
-### Failover 測試
-
-```
-Before: VIP on lvs-director-1
-Action: docker stop lvs-director-1
-After:  ✅ VIP moved to lvs-director-2
-        Client 仍可透過 VIP 存取後端
-Recovery: ✅ VIP preempted back to lvs-director-1
-```
-
-### DSR 驗證 (IPVS Statistics)
-
-```
-                    InPkts  OutPkts  InBytes  OutBytes
-VIP:80               105      0       6765       0     ← OutPkts=0 證明 DSR
-→ RS-1:80             63      0       4059       0
-→ RS-2:80             42      0       2706       0
-```
-
-`OutPkts=0` 和 `OutBytes=0` 確認 **Director 不轉發回應封包**，回應直接從 Real Server 返回 Client — 這就是 DSR 的核心特徵！
-
----
-
-## 17. 虛擬化平台評比：VMware vs KVM vs VirtualBox vs Docker
-
-本 PoC 在最終採用 Docker 之前，依序測試了三種 Hypervisor 方案（Vagrant + VM）。以下記錄每個方案的**實測過程、遭遇的問題、解法與最終結論**，供讀者在選型時參考。
-
-### 測試環境
-
-| 項目 | 規格 |
-|------|------|
-| **OS** | Ubuntu 24.04 LTS (kernel 6.14.0-1020-oem) |
-| **CPU** | Intel Core (16 cores), VT-x 支援 |
-| **RAM** | 24 GB |
-| **Vagrant** | 2.4.9 |
-| **Vagrant Box** | `generic/ubuntu2204`, `bento/ubuntu-22.04` |
-
----
-
-### 17.1 VMware Workstation 25
-
-**版本**：VMware Workstation 25 (free personal use license)
-**Plugin**：vagrant-vmware-desktop 3.0.5 + vagrant-vmware-utility
-
-#### 遭遇問題與解法
-
-| # | 問題 | 根因 | 解法 | 結果 |
-|---|------|------|------|------|
-| 1 | Snapshot 失敗，`-T player` flag 錯誤 | vagrant-vmware-utility 偵測到 "standard license"，以 player 模式啟動 | 建立 systemd override 加入 `-license-override professional` | ✅ 已解決 |
-| 2 | vmnet 裝置啟動失敗 | vmnet kernel module 不相容 kernel 6.14.0 | `sudo vmware-modconfig --console --install-all` 重新編譯 | ✅ 已解決 |
-| 3 | VM 卡在 "Waiting for the VM to receive an address..." | Guest 內 `open-vm-tools` 不相容 VMware Workstation 25，VMware Tools state = `unknown` | 無法解決 — 換 `bento/ubuntu-22.04` box 同樣失敗 | ❌ **Blocker** |
-
-#### 詳細說明
-
-**問題 1：License 偵測錯誤**
-
-VMware Workstation 25 改為免費個人使用，但 vagrant-vmware-utility 仍將其辨識為 "standard license" 並以 `-T player` 模式啟動 VM，導致 snapshot 操作失敗。
-
-```bash
-# 解法：建立 systemd override
-sudo mkdir -p /etc/systemd/system/vagrant-vmware-utility.service.d
-sudo tee /etc/systemd/system/vagrant-vmware-utility.service.d/override.conf << 'EOF'
-[Service]
-ExecStart=
-ExecStart=/opt/vagrant-vmware-desktop/bin/vagrant-vmware-utility api \
-  -config-file=/opt/vagrant-vmware-desktop/config/service.hcl \
-  -license-override professional
-EOF
-sudo systemctl daemon-reload && sudo systemctl restart vagrant-vmware-utility
-```
-
-**問題 2：Kernel Module 不相容**
-
-OEM kernel (6.14.0-1020-oem) 未預裝 VMware 的 vmnet/vmmon 模組。
-
-```bash
-# 解法：重新編譯所有 VMware kernel modules
-sudo vmware-modconfig --console --install-all
-```
-
-**問題 3：Guest Tools 不相容（致命）**
-
-`generic/ubuntu2204` 和 `bento/ubuntu-22.04` 兩種 box 的 `open-vm-tools` 都無法與 VMware Workstation 25 正確通訊。Guest VM 啟動後，VMware Tools 狀態為 `unknown`，Vagrant 永遠收不到 Guest IP，timeout 後失敗。
-
-```
-VMware Tools state: unknown   ← 問題核心
-Vagrant 等待 IP → 永久 timeout
-```
-
-#### 結論
-
-> ❌ **不可用**。VMware Workstation 25 + Vagrant 在新版 kernel 上有根本性的 Guest Tools 相容性問題，目前沒有可行的解法。
-
----
-
-### 17.2 KVM / libvirt
-
-**版本**：libvirt 10.0.0, QEMU 8.2.2
-**Plugin**：vagrant-libvirt (需安裝 `libvirt-dev` 編譯)
-
-#### 遭遇問題與解法
-
-| # | 問題 | 根因 | 解法 | 結果 |
-|---|------|------|------|------|
-| 1 | vagrant-libvirt plugin 安裝失敗 | 缺少 `libvirt-dev` 套件 | `sudo apt-get install -y libvirt-dev` | ✅ 已解決 |
-| 2 | VMware vmnet 網路衝突 | vmnet 佔用 192.168.100.0/24 | `sudo vmware-networks --stop` | ✅ 已解決 |
-| 3 | libvirt default storage pool 不存在 | 系統未預設建立 | `virsh pool-define-as default dir --target /var/lib/libvirt/images` | ✅ 已解決 |
-| 4 | libvirt default network 不存在 / virbr0 stale | 曾被刪除或從未建立 | 手動建立 network XML 並 `virsh net-start default` | ✅ 已解決 |
-| 5 | Guest VM 不發送 DHCP 請求 | `generic/ubuntu2204` libvirt box 的 cloud-init 網路設定問題 | 無法解決 — Guest 網路完全不啟動 | ❌ **Blocker** |
-
-#### 詳細說明
-
-**問題 1-4：環境配置**
-
-KVM/libvirt 的初始環境設定比較繁瑣，需要逐一確認 storage pool、network、bridge 等基礎設施。如果系統上同時有 VMware，還要先停掉 VMware 的虛擬網路以避免衝突。
-
-**問題 5：Guest 網路不啟動（致命）**
-
-`generic/ubuntu2204` 的 libvirt variant box 啟動後，Guest OS 從不發出 DHCP request。libvirt 的 dnsmasq 日誌中完全看不到任何 DHCP 交握。推測是 box 內建的 cloud-init/netplan 設定與 libvirt 預設網路不匹配。
-
-```
-virsh domifaddr <vm>  → 空白（無 IP）
-libvirt dnsmasq log   → 無任何 DHCP 記錄
-```
-
-#### 結論
-
-> ❌ **不可用**。libvirt 環境設定複雜，且 `generic/ubuntu2204` libvirt box 的 Guest 網路有根本性問題。
-
----
-
-### 17.3 VirtualBox 7.2.6
-
-**版本**：VirtualBox 7.2.6 r172322
-**Vagrant Box**：`generic/ubuntu2204`, `bento/ubuntu-22.04`
-
-#### 遭遇問題與解法
-
-| # | 問題 | 根因 | 解法 | 結果 |
-|---|------|------|------|------|
-| 1 | Host-only network IP 範圍限制 | VirtualBox 預設只允許 192.168.56.0/21 | 建立 `/etc/vbox/networks.conf` 加入 `* 192.168.100.0/24` | ✅ 已解決 |
-| 2 | VMware vmnet2 碰撞 | vmnet2 佔用 192.168.100.0 網段 | `sudo vmware-networks --stop` | ✅ 已解決 |
-| 3 | VT-x 被 KVM 佔用 | KVM kernel module 已載入 | `sudo rmmod kvm_intel kvm` + 停止 libvirtd | ✅ 已解決 |
-| 4 | SSH timeout（兩種 box 皆失敗） | Guest OS 啟動但 sshd 不回應 banner | 設定 `boot_timeout=600`、嘗試兩種 box，均失敗 | ❌ **Blocker** |
-
-#### 詳細說明
-
-**問題 1：IP 範圍白名單**
-
-VirtualBox 7+ 新增安全機制，host-only network 只能使用白名單中的 IP 範圍。
-
-```bash
-# 解法
-sudo mkdir -p /etc/vbox
-echo "* 192.168.100.0/24" | sudo tee /etc/vbox/networks.conf
-```
-
-**問題 3：Hypervisor 互斥**
-
-VirtualBox 使用 VT-x，而 KVM 也佔用 VT-x。兩者不能共存。
-
-```
-VBoxManage: error: VT-x is being used by another hypervisor (VERR_VMX_IN_VMX_ROOT_MODE)
-```
-
-```bash
-# 解法：卸載 KVM 模組
-sudo rmmod kvm_intel kvm
-sudo systemctl stop libvirtd
-```
-
-**問題 4：SSH Timeout（致命）**
-
-兩種 box 的 VM 都能正常啟動（VBox.log 顯示 kernel 已引導、AHCI 正常），NAT port forward 規則也正確設定。`nc -zv 127.0.0.1 2222` 顯示端口開放，但 SSH 連線永遠卡在 banner exchange：
-
-```
-$ ssh -vvv -p 2222 vagrant@127.0.0.1
-debug1: Connection established.
-debug1: Local version string SSH-2.0-OpenSSH_9.6p1
-  ← 對方永不回傳 SSH banner
-  ← 10 分鐘後 timeout
-```
-
-VBox Guest Properties 中完全沒有網路資訊，Guest Additions 未安裝/未啟動，VBoxManage guestcontrol 也無法使用。推測 Guest 內部 sshd 未啟動或網路棧未完全初始化。
-
-#### 結論
-
-> ❌ **不可用**。Guest VM 可引導但 SSH 永遠無法連接，無論使用 `generic/ubuntu2204` 或 `bento/ubuntu-22.04`。
-
----
-
-### 17.4 Docker (最終方案)
-
-**版本**：Docker 28.2.2, Docker Compose V2
-**映像**：Ubuntu 22.04 (Director), Nginx 1.24 (Real Server)
-
-#### 實測過程
-
-| 步驟 | 耗時 | 結果 |
-|------|------|------|
-| Build 所有映像 (首次) | ~60 秒 | ✅ |
-| 啟動 5 個容器 | ~3 秒 | ✅ |
-| Keepalived 穩定 | ~10 秒 | ✅ VIP 正確分配到 MASTER |
-| 基本連線測試 | 即時 | ✅ VIP 可達, HTTP 200 |
-| 負載分配 (50 req) | ~5 秒 | ✅ WRR 3:2 精確分配 (60%:40%) |
-| 效能測試 (500 req) | ~1 秒 | ✅ 18,538 req/sec, 0 失敗 |
-| Failover 測試 | ~5 秒 | ✅ VIP 轉移到 BACKUP |
-| Recovery 測試 | ~5 秒 | ✅ VIP 搶回 MASTER |
-| DSR 驗證 | 即時 | ✅ OutPkts=0 確認 DSR |
-
-**零問題，零 workaround，一次成功。**
-
----
-
-### 17.5 總評比
-
-| 評估面向 | VMware WS 25 | KVM/libvirt | VirtualBox 7.2 | Docker |
-|----------|:---:|:---:|:---:|:---:|
-| **可用性** | ❌ 不可用 | ❌ 不可用 | ❌ 不可用 | ✅ 完美 |
-| **啟動速度** | ~5 分鐘 (理論) | ~3 分鐘 (理論) | ~3 分鐘 (理論) | **~3 秒** |
-| **資源消耗** | 2.8 GB RAM | 2.8 GB RAM | 2.8 GB RAM | **~200 MB** |
-| **環境配置** | 複雜 (3 個問題) | 複雜 (5 個問題) | 中等 (4 個問題) | **零配置** |
-| **Hypervisor 互斥** | 與 KVM 衝突 | 與 VMware 衝突 | 與 KVM 衝突 | **無衝突** |
-| **IPVS/DSR 支援** | 完整 (VM 核心) | 完整 (VM 核心) | 完整 (VM 核心) | ✅ 共享 Host 核心 |
-| **VRRP Multicast** | ✅ | ✅ | ✅ | ✅ (bridge net) |
-| **ARP 抑制** | ✅ | ✅ | ✅ | ✅ (privileged) |
-| **可重現性** | 低 (依賴版本) | 低 (依賴版本) | 低 (依賴版本) | **高 (Dockerfile)** |
-| **CI/CD 整合** | ❌ 困難 | ⚠️ 需 nested virt | ❌ 困難 | **✅ 原生支援** |
-
-### 17.6 為什麼 VM 方案全部失敗？
-
-三種 Hypervisor 在相同硬體上都遇到了 **Guest 網路/SSH 不可用**的致命問題，根因歸納如下：
-
-```
-                    共同問題                           根因
-              ┌─────────────────┐
-VMware    ──► │ Guest Tools     │ ← open-vm-tools 不相容 WS 25
-              │ 不回報 IP       │
-              └─────────────────┘
-
-              ┌─────────────────┐
-KVM       ──► │ Guest 不發       │ ← cloud-init/netplan 設定
-              │ DHCP request    │   與 libvirt 預設網路不匹配
-              └─────────────────┘
-
-              ┌─────────────────┐
-VirtualBox──► │ sshd 不回應      │ ← Guest Additions 缺失
-              │ SSH banner      │   Guest 網路棧初始化異常
-              └─────────────────┘
-```
-
-共通因素：
-1. **Kernel 6.14.0-1020-oem** — 較新的 OEM kernel 與各 Hypervisor 的 kernel module 相容性差
-2. **Vagrant Box 的 Guest Agent** — `generic/ubuntu2204` 和 `bento/ubuntu-22.04` 的 guest tools 版本落後
-3. **多 Hypervisor 共存** — VMware vmnet、KVM virbr、VirtualBox vboxnet 互相干擾
-
-### 17.7 選型建議
-
-| 場景 | 推薦方案 | 理由 |
-|------|---------|------|
-| **PoC / 教學 / 快速驗證** | **Docker** | 秒級啟動、零配置、100% 可重現 |
-| **需要完整 OS 隔離** | KVM + 手動安裝 (非 Vagrant) | 跳過 Vagrant box 的 guest agent 問題 |
-| **生產環境模擬** | Bare metal + Ansible | 最接近真實環境 |
-| **CI/CD Pipeline** | **Docker** | GitHub Actions/GitLab CI 原生支援 |
-| **跨 Hypervisor 測試** | 更新至主流 kernel + 等待 box 更新 | 目前 OEM kernel 相容性不佳 |
-
-> **結論**：對於 LVS/IPVS PoC 而言，Docker 是最佳選擇。IPVS 運作在 Linux kernel 層，privileged container 可以完整存取 kernel 的 netfilter/IPVS 子系統，DSR 模式、VRRP multicast、ARP 抑制全部正常運作，同時省去了 VM 的啟動開銷和 guest agent 相容性問題。
-
----
-
-## 18. Docker Compose 做 LVS：能力邊界與生產差異分析
-
-### 18.1 Docker Compose 能完整演練 LVS 嗎？
-
-**可以，本 PoC 已實證。** 以下是每個 LVS 核心功能在 Docker 容器中的驗證結果：
-
-| 驗證項目 | VM 環境 (理論) | Docker Compose (實測) | 為什麼行得通 |
-|----------|:-:|:-:|------|
-| IPVS DR (DSR) 模式 | ✅ | ✅ `OutPkts=0` 已證明 | IPVS 在 kernel 層運作，privileged 容器完整存取 |
-| WRR 加權排程 | ✅ | ✅ 60%:40% 精確命中 | `ipvsadm` 在容器中正常操作 kernel IPVS 表 |
-| Keepalived VRRP | ✅ | ✅ VIP 漂移成功 | multicast 透過 Docker bridge network 正常傳遞 |
-| ARP 抑制 | ✅ | ✅ `arp_ignore=1` | privileged 容器可直接寫 `/proc/sys/` |
-| VIP on loopback | ✅ | ✅ `lo:0` 綁定成功 | `ip addr add` 在容器內正常運作 |
-| Health Check | ✅ | ✅ HTTP GET /health | Keepalived 正常偵測 RS 存活狀態 |
-| Failover + Recovery | ✅ | ✅ 秒級切換 + 搶占回復 | VRRP 狀態機完整運作 |
-
-**關鍵原因：IPVS 是 Linux kernel 子系統，不是 userspace 程式。**
-
-```
-┌─────────────────────────────────────────────────────┐
-│                  Linux Host                          │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐             │
-│  │Director-1│ │Director-2│ │ RS-1/2   │  ← 容器      │
-│  │privileged│ │privileged│ │privileged│    (userspace)│
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘             │
-│───────┼─────────────┼────────────┼───── namespace ───│
-│       ▼             ▼            ▼                    │
-│  ┌─────────────────────────────────────┐             │
-│  │         Linux Kernel                 │             │
-│  │   ┌─────────┐  ┌──────────┐         │             │
-│  │   │  IPVS   │  │ netfilter│         │  ← 共享     │
-│  │   │ (ip_vs) │  │  (ARP)   │         │    kernel   │
-│  │   └─────────┘  └──────────┘         │             │
-│  └─────────────────────────────────────┘             │
-└─────────────────────────────────────────────────────┘
-```
-
-`privileged: true` 的容器直接操作 host kernel 的 IPVS 子系統，和在 VM 裡執行**沒有任何功能差異**。
-
-### 18.2 為什麼 Production 不適合用 Docker Compose？
-
-Docker Compose 讓所有容器跑在同一台 Host 上，這在 PoC 中沒問題，但在生產環境中違反了 HA 的基本前提：
-
-```
-  PoC (所有容器在同一台 Host)               Production (跨實體機部署)
-┌─────────────────────────┐           ┌──────────┐   ┌──────────┐
-│        Single Host       │           │ 實體機 A  │   │ 實體機 B  │
-│ ┌─────┐ ┌─────┐         │           │ Director │   │ Director │
-│ │Dir-1│ │Dir-2│ ← 同機   │           │ (MASTER) │   │ (BACKUP) │
-│ └─────┘ └─────┘   搶占   │           └────┬─────┘   └────┬─────┘
-│ ┌────┐ ┌────┐   意義不大  │                │   L2 Switch   │
-│ │RS-1│ │RS-2│            │           ┌────┴──┬───────┬───┴────┐
-│ └────┘ └────┘            │           │       │       │        │
-│                          │          ┌┴──┐  ┌┴──┐  ┌┴──┐  ┌─┴─┐
-│  Host 掛 = 全部掛 💀     │          │RS1│  │RS2│  │RS3│  │RSN│
-└─────────────────────────┘           └───┘  └───┘  └───┘  └───┘
-                                       各自獨立，任一台掛不影響服務
-```
-
-| 面向 | Docker Compose (PoC) | 生產環境 (多機) |
-|------|:-:|:-:|
-| **單點故障** | ❌ Host 掛了 = 全部掛 | ✅ 每個角色在不同實體機 |
-| **網路隔離** | ⚠️ bridge network (L2 模擬) | ✅ 真正的物理交換機 / VLAN |
-| **VRRP 搶占** | ⚠️ 同 Host 容器互搶意義不大 | ✅ 跨機器 VIP 漂移才有容災意義 |
-| **效能瓶頸** | ⚠️ bridge 有額外 overhead | ✅ 直接走 NIC，零 overhead |
-| **核心升級** | ❌ Host kernel 升級影響全部容器 | ✅ 可逐台滾動升級 |
-| **故障隔離** | ❌ 一個 privileged 容器可影響全部 | ✅ 互不影響 |
-
-### 18.3 生產環境的正確做法
-
-**多台實體機 / VM + 自動化部署工具：**
-
-```
-┌──────────────────┐     ┌──────────────────┐
-│   實體機 A         │     │   實體機 B         │
-│   Director-1      │     │   Director-2      │
-│   Keepalived      │     │   Keepalived      │
-│   MASTER (pri=100)│     │   BACKUP (pri=90) │
-│   VIP: .100  ⭐   │     │                   │
-└────────┬─────────┘     └────────┬─────────┘
-         │         L2 Switch       │
-    ┌────┴────┬────────────┬──────┴───┐
-    │         │            │          │
-┌───┴──┐  ┌──┴───┐  ┌────┴─┐  ┌───┴──┐
-│實體機C│  │實體機D│  │實體機E│  │實體機F│
-│ RS-1  │  │ RS-2  │  │ RS-3  │  │ RS-N  │
-│ w=3   │  │ w=2   │  │ w=1   │  │ w=1   │
-│ Nginx │  │ Nginx │  │ Nginx │  │ Nginx │
-│VIP@lo │  │VIP@lo │  │VIP@lo │  │VIP@lo │
-└───────┘  └───────┘  └──────┘  └───────┘
-```
-
-常見部署工具鏈：
-
-| 工具 | 用途 | 適合場景 |
-|------|------|---------|
-| **Ansible** | 批量配置 keepalived.conf, sysctl, nginx | Bare metal / VM |
-| **Terraform + Ansible** | 開 VM + 配置 LVS | 私有雲 (OpenStack, vSphere) |
-| **PXE + Kickstart** | 裸機自動化部署 | 大規模 Data Center |
-| **SaltStack** | 即時配置管理 | 需要即時變更的環境 |
-
-### 18.4 現代架構中的 L4 負載均衡方案
-
-在現代架構中，直接手動部署 LVS/IPVS 的場景已經不多。以下是更常見的替代方案，**但它們的底層原理和本 PoC 教的內容一致**：
-
-| 方案 | 層級 | 底層技術 | 適合場景 |
-|------|------|---------|---------|
-| **kube-proxy (ipvs mode)** | L4 | 就是本 PoC 教的 IPVS | K8s 叢集內部 |
-| **MetalLB** | L4 | IPVS + ARP/BGP | K8s bare-metal LoadBalancer |
-| **Cilium (eBPF LB)** | L4 | eBPF 取代 IPVS，更高效 | 高效能 K8s 叢集 |
-| **HAProxy (L4 mode)** | L4 | Userspace proxy | 不想碰 kernel module |
-| **Nginx Stream** | L4 | Userspace proxy | 簡單 TCP/UDP 負載均衡 |
-| **AWS NLB / GCP L4 LB** | L4 | 雲端自有實作 | 雲端環境 |
-| **Keepalived + LVS** | L4 | 本 PoC 方案 | Bare metal 高效能需求 |
-
-```
-你學的 LVS/IPVS 知識在這些場景都用得到：
-
-  本 PoC                    Kubernetes
-┌──────────┐            ┌──────────────────┐
-│ ipvsadm  │            │ kube-proxy       │
-│ wrr 排程  │ ── 相同 ──►│ --proxy-mode=ipvs│
-│ DR 模式   │   原理     │ IPVS + DNAT      │
-│ keepalived│            │ MetalLB (ARP)    │
-└──────────┘            └──────────────────┘
-```
-
-### 18.5 結論
-
-| 問題 | 答案 |
-|------|------|
-| Docker Compose 能做 LVS PoC 演練？ | ✅ **完全可以** — kernel 層功能全部正常運作 |
-| Docker Compose 能當 Production LVS？ | ❌ **不適合** — 單 Host 無法實現真正的 HA |
-| Docker Compose 的定位？ | **最佳學習實驗室** — 用最低成本理解 IPVS/DSR/VRRP 原理 |
-| Production LVS 該怎麼做？ | 多台實體機 + Ansible 部署，或直接用 K8s + MetalLB |
-| 學 LVS 有什麼用？ | kube-proxy、MetalLB、Cilium 底層都是同樣的 IPVS 原理 |
-
-> **一句話總結：Docker Compose 是最好的「LVS 教學實驗室」，但不是生產級 LVS 的部署方式。理解原理後，在 Kubernetes 的 kube-proxy (ipvs mode) 和 MetalLB 中會再次看到完全相同的技術。**
-
----
-
-## 19. 初學者完整操作教學 (Step-by-Step)
+## 11. 初學者完整操作教學 (Step-by-Step)
 
 > 本節帶你**從零開始**，一步步操作完整個 LVS DSR 負載均衡 PoC。每一步都附上**實際指令**和**真實終端輸出**，讓你跟著做就能成功。
 
@@ -1386,6 +784,660 @@ $ ./manage.sh destroy
 | **Gratuitous ARP** | Step 8 | 日誌顯示 VIP 接管時發送 GARP |
 
 > **這些知識直接適用於**：Kubernetes kube-proxy (ipvs mode)、MetalLB、Cilium、以及任何使用 IPVS 的生產環境。
+
+---
+
+## 12. PoC 實測結果
+
+> 以下是實際執行的測試結果，你可以和自己操作後的輸出對照，確認環境是否正確。
+
+### 基本連線測試
+
+```
+✅ VIP 192.168.100.100 可達 (0% packet loss)
+✅ HTTP 200 OK
+✅ 10 次請求交替分配到 real-server-1 和 real-server-2
+```
+
+### 負載分配 (WRR 3:2)
+
+```
+real-server-1 : 30 requests (60.0%) ██████████████████████████████
+real-server-2 : 20 requests (40.0%) ████████████████████
+Total: 50/50 成功
+```
+
+精確符合 WRR 權重 3:2 = 60%:40% 的預期！
+
+### 效能測試 (Apache Bench)
+
+```
+Requests per second: 18,538 req/sec
+Failed requests:     0
+Time per request:    0.054 ms (across all concurrent)
+```
+
+### Failover 測試
+
+```
+Before: VIP on lvs-director-1
+Action: docker stop lvs-director-1
+After:  ✅ VIP moved to lvs-director-2
+        Client 仍可透過 VIP 存取後端
+Recovery: ✅ VIP preempted back to lvs-director-1
+```
+
+### DSR 驗證 (IPVS Statistics)
+
+```
+                    InPkts  OutPkts  InBytes  OutBytes
+VIP:80               105      0       6765       0     ← OutPkts=0 證明 DSR
+→ RS-1:80             63      0       4059       0
+→ RS-2:80             42      0       2706       0
+```
+
+`OutPkts=0` 和 `OutBytes=0` 確認 **Director 不轉發回應封包**，回應直接從 Real Server 返回 Client — 這就是 DSR 的核心特徵！
+
+---
+
+## 13. 叢集管理指令
+
+```bash
+./manage.sh up              # 啟動所有容器 (docker compose up)
+./manage.sh down            # 停止所有容器
+./manage.sh destroy         # 銷毀所有容器和映像檔 (⚠️ 不可逆)
+./manage.sh status          # 顯示叢集狀態
+./manage.sh test            # 從 Client 執行完整測試
+./manage.sh exec <container># 進入指定容器的 shell
+./manage.sh failover        # 模擬 Director 故障
+./manage.sh recover         # 恢復 Director
+./manage.sh ipvs            # 顯示 IPVS 路由表
+./manage.sh logs            # 顯示 Keepalived 日誌
+```
+
+---
+
+## 14. 測試腳本說明
+
+從 Client 容器內執行：
+
+```bash
+# 進入 Client 容器
+docker exec -it lvs-client bash
+
+# 完整測試套件
+test-all.sh
+
+# 個別測試
+test-basic.sh              # 基本連線測試
+test-distribution.sh 100   # 負載分配 (100 次請求)
+test-performance.sh 10 500 # 效能測試 (10 並發，500 請求)
+test-failover.sh 60        # Failover 監控 (60 秒)
+test-dsr-verify.sh         # DSR 封包驗證
+```
+
+### DSR 驗證
+
+確認 DSR 運作正常：
+
+```bash
+# 方法 1：從 Client 容器執行 DSR 驗證腳本
+docker exec lvs-client test-dsr-verify.sh
+
+# 方法 2：檢查 Director 的 IPVS 統計
+docker exec lvs-director-1 ipvsadm -Ln --stats
+# 觀察 OutPkts=0 和 OutBytes=0 → 證明 Director 不轉發回應封包
+```
+
+預期行為：
+- **Request 路徑**：Client (`.50`) → VIP (`.100`) on Director
+- **Response 路徑**：Real Server (`.21/.22`) → Client (`.50`) **直接回**
+- Director **只看到 Request，看不到 Response**（`OutPkts=0`）
+
+---
+
+## 15. 容器設計詳解
+
+### 15.1 Director 容器 (`docker/director/`)
+
+```
+Dockerfile: Ubuntu 22.04 + ipvsadm + keepalived
+                    │
+entrypoint.sh:      ▼
+偵測 Service Network 介面 (eth0)
+         │
+         ▼
+依據環境變數動態生成 keepalived.conf：
+  ├── VRRP Instance (VIP 漂移)
+  ├── Virtual Server (IPVS DR 模式)
+  ├── Real Server 定義 (含 weight)
+  └── HTTP Health Check (/health)
+         │
+         ▼
+建立 Sorry Server (所有 RS 掛了時的備援頁面)
+         │
+         ▼
+啟動 Keepalived (foreground, 作為容器主程序)
+```
+
+環境變數：
+| 變數 | 說明 | 範例 |
+|------|------|------|
+| `KEEPALIVED_ROLE` | MASTER 或 BACKUP | `MASTER` |
+| `KEEPALIVED_PRIORITY` | VRRP 優先權 | `100` |
+| `VIP` | 虛擬 IP | `192.168.100.100` |
+| `REAL_SERVERS_CSV` | RS 清單 (IP:weight) | `192.168.100.21:3,192.168.100.22:2` |
+
+### 15.2 Real Server 容器 (`docker/realserver/`)
+
+```
+Dockerfile: Nginx 1.24 + iproute2
+                    │
+entrypoint.sh:      ▼
+ARP 抑制設定：
+  ├── arp_ignore = 1
+  └── arp_announce = 2
+    │
+    ▼
+VIP 綁在 loopback (lo:0)：
+  └── ip addr add VIP/32 dev lo
+    │
+    ▼
+Nginx 設定：
+  ├── /health → 200 OK
+  ├── /api/info.json → 伺服器資訊 (JSON)
+  └── / → 首頁 (顯示伺服器身份)
+    │
+    ▼
+啟動 Nginx (foreground)
+```
+
+### 15.3 Client 容器 (`docker/client/`)
+
+安裝 `curl`, `ab` (Apache Bench), `tcpdump`, `jq`，並部署 5 個測試腳本到 `/usr/local/bin/`。
+
+---
+
+## 16. 疑難排解
+
+### VIP 未分配
+
+```bash
+docker logs lvs-director-1       # 檢查 Keepalived 日誌
+docker exec lvs-director-1 ip addr show  # 確認 VIP 是否出現
+```
+
+### Real Server 沒收到流量
+
+```bash
+docker exec real-server-1 rs-status.sh   # 檢查 VIP on lo、ARP 設定
+docker exec real-server-1 curl -s http://localhost/health  # 確認 Nginx 正常
+docker exec real-server-1 cat /proc/sys/net/ipv4/conf/all/arp_ignore   # 必須是 1
+docker exec real-server-1 cat /proc/sys/net/ipv4/conf/all/arp_announce # 必須是 2
+```
+
+### IPVS 顯示 0 連線
+
+```bash
+docker exec lvs-director-1 ipvsadm -Ln           # 確認 Real Server 已列出
+docker exec lvs-director-1 ipvsadm -Ln --stats   # 確認封包計數
+```
+
+### IPVS 核心模組未載入
+
+如果 Director 啟動後 ipvsadm 報錯：
+```bash
+sudo modprobe ip_vs ip_vs_rr ip_vs_wrr ip_vs_sh
+# 永久載入：
+echo -e "ip_vs\nip_vs_rr\nip_vs_wrr\nip_vs_sh" | sudo tee /etc/modules-load.d/ipvs.conf
+```
+
+---
+
+## 17. 擴充方向
+
+### 新增 HTTPS (TLS Termination at RS)
+
+```bash
+# 在每台 RS 上設定 Nginx SSL
+# 更新 keepalived: virtual_server VIP 443 + lb_kind DR
+```
+
+### 切換到 IPVS Tunnel 模式 (跨子網 DSR)
+
+```
+# 在 keepalived.conf 中改:
+lb_kind DR  →  lb_kind TUN
+# RS 需要設定 ipip tunnel 取代 lo VIP
+```
+
+### 加入 Prometheus 監控
+
+```bash
+# 在 Director 安裝 ipvs_exporter
+# 在所有節點安裝 node_exporter
+# 另起一台 VM 部署 Prometheus + Grafana
+```
+
+### 增加 Real Server
+
+在 `docker-compose.yml` 中新增一個 Real Server 定義，並更新 Directors 的 `REAL_SERVERS_CSV`：
+
+```yaml
+# 新增 real-server-3
+real-server-3:
+  build:
+    context: ./docker/realserver
+  container_name: real-server-3
+  hostname: real-server-3
+  privileged: true
+  cap_add:
+    - NET_ADMIN
+  networks:
+    lvs-net:
+      ipv4_address: 192.168.100.23
+  environment:
+    - RS_IP=192.168.100.23
+    - RS_NAME=real-server-3
+    - VIP=192.168.100.100
+
+# 更新 Directors 的 REAL_SERVERS_CSV:
+# REAL_SERVERS_CSV=192.168.100.21:3,192.168.100.22:2,192.168.100.23:1
+```
+
+然後重新啟動叢集：`./manage.sh down && ./manage.sh up`
+
+---
+
+## 附錄 A：虛擬化平台評比 — VMware vs KVM vs VirtualBox vs Docker
+
+> 本附錄記錄 PoC 在最終採用 Docker 之前，依序測試三種 Hypervisor 方案的過程。如果你只想學 LVS 原理和操作，可以跳過本節。
+
+本 PoC 在最終採用 Docker 之前，依序測試了三種 Hypervisor 方案（Vagrant + VM）。以下記錄每個方案的**實測過程、遭遇的問題、解法與最終結論**，供讀者在選型時參考。
+
+### 測試環境
+
+| 項目 | 規格 |
+|------|------|
+| **OS** | Ubuntu 24.04 LTS (kernel 6.14.0-1020-oem) |
+| **CPU** | Intel Core (16 cores), VT-x 支援 |
+| **RAM** | 24 GB |
+| **Vagrant** | 2.4.9 |
+| **Vagrant Box** | `generic/ubuntu2204`, `bento/ubuntu-22.04` |
+
+---
+
+### A.1 VMware Workstation 25
+
+**版本**：VMware Workstation 25 (free personal use license)
+**Plugin**：vagrant-vmware-desktop 3.0.5 + vagrant-vmware-utility
+
+#### 遭遇問題與解法
+
+| # | 問題 | 根因 | 解法 | 結果 |
+|---|------|------|------|------|
+| 1 | Snapshot 失敗，`-T player` flag 錯誤 | vagrant-vmware-utility 偵測到 "standard license"，以 player 模式啟動 | 建立 systemd override 加入 `-license-override professional` | ✅ 已解決 |
+| 2 | vmnet 裝置啟動失敗 | vmnet kernel module 不相容 kernel 6.14.0 | `sudo vmware-modconfig --console --install-all` 重新編譯 | ✅ 已解決 |
+| 3 | VM 卡在 "Waiting for the VM to receive an address..." | Guest 內 `open-vm-tools` 不相容 VMware Workstation 25，VMware Tools state = `unknown` | 無法解決 — 換 `bento/ubuntu-22.04` box 同樣失敗 | ❌ **Blocker** |
+
+#### 詳細說明
+
+**問題 1：License 偵測錯誤**
+
+VMware Workstation 25 改為免費個人使用，但 vagrant-vmware-utility 仍將其辨識為 "standard license" 並以 `-T player` 模式啟動 VM，導致 snapshot 操作失敗。
+
+```bash
+# 解法：建立 systemd override
+sudo mkdir -p /etc/systemd/system/vagrant-vmware-utility.service.d
+sudo tee /etc/systemd/system/vagrant-vmware-utility.service.d/override.conf << 'EOF'
+[Service]
+ExecStart=
+ExecStart=/opt/vagrant-vmware-desktop/bin/vagrant-vmware-utility api \
+  -config-file=/opt/vagrant-vmware-desktop/config/service.hcl \
+  -license-override professional
+EOF
+sudo systemctl daemon-reload && sudo systemctl restart vagrant-vmware-utility
+```
+
+**問題 2：Kernel Module 不相容**
+
+OEM kernel (6.14.0-1020-oem) 未預裝 VMware 的 vmnet/vmmon 模組。
+
+```bash
+# 解法：重新編譯所有 VMware kernel modules
+sudo vmware-modconfig --console --install-all
+```
+
+**問題 3：Guest Tools 不相容（致命）**
+
+`generic/ubuntu2204` 和 `bento/ubuntu-22.04` 兩種 box 的 `open-vm-tools` 都無法與 VMware Workstation 25 正確通訊。Guest VM 啟動後，VMware Tools 狀態為 `unknown`，Vagrant 永遠收不到 Guest IP，timeout 後失敗。
+
+```
+VMware Tools state: unknown   ← 問題核心
+Vagrant 等待 IP → 永久 timeout
+```
+
+#### 結論
+
+> ❌ **不可用**。VMware Workstation 25 + Vagrant 在新版 kernel 上有根本性的 Guest Tools 相容性問題，目前沒有可行的解法。
+
+---
+
+### A.2 KVM / libvirt
+
+**版本**：libvirt 10.0.0, QEMU 8.2.2
+**Plugin**：vagrant-libvirt (需安裝 `libvirt-dev` 編譯)
+
+#### 遭遇問題與解法
+
+| # | 問題 | 根因 | 解法 | 結果 |
+|---|------|------|------|------|
+| 1 | vagrant-libvirt plugin 安裝失敗 | 缺少 `libvirt-dev` 套件 | `sudo apt-get install -y libvirt-dev` | ✅ 已解決 |
+| 2 | VMware vmnet 網路衝突 | vmnet 佔用 192.168.100.0/24 | `sudo vmware-networks --stop` | ✅ 已解決 |
+| 3 | libvirt default storage pool 不存在 | 系統未預設建立 | `virsh pool-define-as default dir --target /var/lib/libvirt/images` | ✅ 已解決 |
+| 4 | libvirt default network 不存在 / virbr0 stale | 曾被刪除或從未建立 | 手動建立 network XML 並 `virsh net-start default` | ✅ 已解決 |
+| 5 | Guest VM 不發送 DHCP 請求 | `generic/ubuntu2204` libvirt box 的 cloud-init 網路設定問題 | 無法解決 — Guest 網路完全不啟動 | ❌ **Blocker** |
+
+#### 詳細說明
+
+**問題 1-4：環境配置**
+
+KVM/libvirt 的初始環境設定比較繁瑣，需要逐一確認 storage pool、network、bridge 等基礎設施。如果系統上同時有 VMware，還要先停掉 VMware 的虛擬網路以避免衝突。
+
+**問題 5：Guest 網路不啟動（致命）**
+
+`generic/ubuntu2204` 的 libvirt variant box 啟動後，Guest OS 從不發出 DHCP request。libvirt 的 dnsmasq 日誌中完全看不到任何 DHCP 交握。推測是 box 內建的 cloud-init/netplan 設定與 libvirt 預設網路不匹配。
+
+```
+virsh domifaddr <vm>  → 空白（無 IP）
+libvirt dnsmasq log   → 無任何 DHCP 記錄
+```
+
+#### 結論
+
+> ❌ **不可用**。libvirt 環境設定複雜，且 `generic/ubuntu2204` libvirt box 的 Guest 網路有根本性問題。
+
+---
+
+### A.3 VirtualBox 7.2.6
+
+**版本**：VirtualBox 7.2.6 r172322
+**Vagrant Box**：`generic/ubuntu2204`, `bento/ubuntu-22.04`
+
+#### 遭遇問題與解法
+
+| # | 問題 | 根因 | 解法 | 結果 |
+|---|------|------|------|------|
+| 1 | Host-only network IP 範圍限制 | VirtualBox 預設只允許 192.168.56.0/21 | 建立 `/etc/vbox/networks.conf` 加入 `* 192.168.100.0/24` | ✅ 已解決 |
+| 2 | VMware vmnet2 碰撞 | vmnet2 佔用 192.168.100.0 網段 | `sudo vmware-networks --stop` | ✅ 已解決 |
+| 3 | VT-x 被 KVM 佔用 | KVM kernel module 已載入 | `sudo rmmod kvm_intel kvm` + 停止 libvirtd | ✅ 已解決 |
+| 4 | SSH timeout（兩種 box 皆失敗） | Guest OS 啟動但 sshd 不回應 banner | 設定 `boot_timeout=600`、嘗試兩種 box，均失敗 | ❌ **Blocker** |
+
+#### 詳細說明
+
+**問題 1：IP 範圍白名單**
+
+VirtualBox 7+ 新增安全機制，host-only network 只能使用白名單中的 IP 範圍。
+
+```bash
+# 解法
+sudo mkdir -p /etc/vbox
+echo "* 192.168.100.0/24" | sudo tee /etc/vbox/networks.conf
+```
+
+**問題 3：Hypervisor 互斥**
+
+VirtualBox 使用 VT-x，而 KVM 也佔用 VT-x。兩者不能共存。
+
+```
+VBoxManage: error: VT-x is being used by another hypervisor (VERR_VMX_IN_VMX_ROOT_MODE)
+```
+
+```bash
+# 解法：卸載 KVM 模組
+sudo rmmod kvm_intel kvm
+sudo systemctl stop libvirtd
+```
+
+**問題 4：SSH Timeout（致命）**
+
+兩種 box 的 VM 都能正常啟動（VBox.log 顯示 kernel 已引導、AHCI 正常），NAT port forward 規則也正確設定。`nc -zv 127.0.0.1 2222` 顯示端口開放，但 SSH 連線永遠卡在 banner exchange：
+
+```
+$ ssh -vvv -p 2222 vagrant@127.0.0.1
+debug1: Connection established.
+debug1: Local version string SSH-2.0-OpenSSH_9.6p1
+  ← 對方永不回傳 SSH banner
+  ← 10 分鐘後 timeout
+```
+
+VBox Guest Properties 中完全沒有網路資訊，Guest Additions 未安裝/未啟動，VBoxManage guestcontrol 也無法使用。推測 Guest 內部 sshd 未啟動或網路棧未完全初始化。
+
+#### 結論
+
+> ❌ **不可用**。Guest VM 可引導但 SSH 永遠無法連接，無論使用 `generic/ubuntu2204` 或 `bento/ubuntu-22.04`。
+
+---
+
+### A.4 Docker (最終方案)
+
+**版本**：Docker 28.2.2, Docker Compose V2
+**映像**：Ubuntu 22.04 (Director), Nginx 1.24 (Real Server)
+
+#### 實測過程
+
+| 步驟 | 耗時 | 結果 |
+|------|------|------|
+| Build 所有映像 (首次) | ~60 秒 | ✅ |
+| 啟動 5 個容器 | ~3 秒 | ✅ |
+| Keepalived 穩定 | ~10 秒 | ✅ VIP 正確分配到 MASTER |
+| 基本連線測試 | 即時 | ✅ VIP 可達, HTTP 200 |
+| 負載分配 (50 req) | ~5 秒 | ✅ WRR 3:2 精確分配 (60%:40%) |
+| 效能測試 (500 req) | ~1 秒 | ✅ 18,538 req/sec, 0 失敗 |
+| Failover 測試 | ~5 秒 | ✅ VIP 轉移到 BACKUP |
+| Recovery 測試 | ~5 秒 | ✅ VIP 搶回 MASTER |
+| DSR 驗證 | 即時 | ✅ OutPkts=0 確認 DSR |
+
+**零問題，零 workaround，一次成功。**
+
+---
+
+### A.5 總評比
+
+| 評估面向 | VMware WS 25 | KVM/libvirt | VirtualBox 7.2 | Docker |
+|----------|:---:|:---:|:---:|:---:|
+| **可用性** | ❌ 不可用 | ❌ 不可用 | ❌ 不可用 | ✅ 完美 |
+| **啟動速度** | ~5 分鐘 (理論) | ~3 分鐘 (理論) | ~3 分鐘 (理論) | **~3 秒** |
+| **資源消耗** | 2.8 GB RAM | 2.8 GB RAM | 2.8 GB RAM | **~200 MB** |
+| **環境配置** | 複雜 (3 個問題) | 複雜 (5 個問題) | 中等 (4 個問題) | **零配置** |
+| **Hypervisor 互斥** | 與 KVM 衝突 | 與 VMware 衝突 | 與 KVM 衝突 | **無衝突** |
+| **IPVS/DSR 支援** | 完整 (VM 核心) | 完整 (VM 核心) | 完整 (VM 核心) | ✅ 共享 Host 核心 |
+| **VRRP Multicast** | ✅ | ✅ | ✅ | ✅ (bridge net) |
+| **ARP 抑制** | ✅ | ✅ | ✅ | ✅ (privileged) |
+| **可重現性** | 低 (依賴版本) | 低 (依賴版本) | 低 (依賴版本) | **高 (Dockerfile)** |
+| **CI/CD 整合** | ❌ 困難 | ⚠️ 需 nested virt | ❌ 困難 | **✅ 原生支援** |
+
+### A.6 為什麼 VM 方案全部失敗？
+
+三種 Hypervisor 在相同硬體上都遇到了 **Guest 網路/SSH 不可用**的致命問題，根因歸納如下：
+
+```
+                    共同問題                           根因
+              ┌─────────────────┐
+VMware    ──► │ Guest Tools     │ ← open-vm-tools 不相容 WS 25
+              │ 不回報 IP       │
+              └─────────────────┘
+
+              ┌─────────────────┐
+KVM       ──► │ Guest 不發       │ ← cloud-init/netplan 設定
+              │ DHCP request    │   與 libvirt 預設網路不匹配
+              └─────────────────┘
+
+              ┌─────────────────┐
+VirtualBox──► │ sshd 不回應      │ ← Guest Additions 缺失
+              │ SSH banner      │   Guest 網路棧初始化異常
+              └─────────────────┘
+```
+
+共通因素：
+1. **Kernel 6.14.0-1020-oem** — 較新的 OEM kernel 與各 Hypervisor 的 kernel module 相容性差
+2. **Vagrant Box 的 Guest Agent** — `generic/ubuntu2204` 和 `bento/ubuntu-22.04` 的 guest tools 版本落後
+3. **多 Hypervisor 共存** — VMware vmnet、KVM virbr、VirtualBox vboxnet 互相干擾
+
+### A.7 選型建議
+
+| 場景 | 推薦方案 | 理由 |
+|------|---------|------|
+| **PoC / 教學 / 快速驗證** | **Docker** | 秒級啟動、零配置、100% 可重現 |
+| **需要完整 OS 隔離** | KVM + 手動安裝 (非 Vagrant) | 跳過 Vagrant box 的 guest agent 問題 |
+| **生產環境模擬** | Bare metal + Ansible | 最接近真實環境 |
+| **CI/CD Pipeline** | **Docker** | GitHub Actions/GitLab CI 原生支援 |
+| **跨 Hypervisor 測試** | 更新至主流 kernel + 等待 box 更新 | 目前 OEM kernel 相容性不佳 |
+
+> **結論**：對於 LVS/IPVS PoC 而言，Docker 是最佳選擇。IPVS 運作在 Linux kernel 層，privileged container 可以完整存取 kernel 的 netfilter/IPVS 子系統，DSR 模式、VRRP multicast、ARP 抑制全部正常運作，同時省去了 VM 的啟動開銷和 guest agent 相容性問題。
+
+---
+
+## 附錄 B：Docker Compose 做 LVS — 能力邊界與生產差異分析
+
+> 本附錄分析 Docker Compose 用於 LVS 的能力邊界，以及與生產環境的差異。如果你只想學 LVS 原理和操作，可以跳過本節。
+
+### B.1 Docker Compose 能完整演練 LVS 嗎？
+
+**可以，本 PoC 已實證。** 以下是每個 LVS 核心功能在 Docker 容器中的驗證結果：
+
+| 驗證項目 | VM 環境 (理論) | Docker Compose (實測) | 為什麼行得通 |
+|----------|:-:|:-:|------|
+| IPVS DR (DSR) 模式 | ✅ | ✅ `OutPkts=0` 已證明 | IPVS 在 kernel 層運作，privileged 容器完整存取 |
+| WRR 加權排程 | ✅ | ✅ 60%:40% 精確命中 | `ipvsadm` 在容器中正常操作 kernel IPVS 表 |
+| Keepalived VRRP | ✅ | ✅ VIP 漂移成功 | multicast 透過 Docker bridge network 正常傳遞 |
+| ARP 抑制 | ✅ | ✅ `arp_ignore=1` | privileged 容器可直接寫 `/proc/sys/` |
+| VIP on loopback | ✅ | ✅ `lo:0` 綁定成功 | `ip addr add` 在容器內正常運作 |
+| Health Check | ✅ | ✅ HTTP GET /health | Keepalived 正常偵測 RS 存活狀態 |
+| Failover + Recovery | ✅ | ✅ 秒級切換 + 搶占回復 | VRRP 狀態機完整運作 |
+
+**關鍵原因：IPVS 是 Linux kernel 子系統，不是 userspace 程式。**
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  Linux Host                          │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐             │
+│  │Director-1│ │Director-2│ │ RS-1/2   │  ← 容器      │
+│  │privileged│ │privileged│ │privileged│    (userspace)│
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘             │
+│───────┼─────────────┼────────────┼───── namespace ───│
+│       ▼             ▼            ▼                    │
+│  ┌─────────────────────────────────────┐             │
+│  │         Linux Kernel                 │             │
+│  │   ┌─────────┐  ┌──────────┐         │             │
+│  │   │  IPVS   │  │ netfilter│         │  ← 共享     │
+│  │   │ (ip_vs) │  │  (ARP)   │         │    kernel   │
+│  │   └─────────┘  └──────────┘         │             │
+│  └─────────────────────────────────────┘             │
+└─────────────────────────────────────────────────────┘
+```
+
+`privileged: true` 的容器直接操作 host kernel 的 IPVS 子系統，和在 VM 裡執行**沒有任何功能差異**。
+
+### B.2 為什麼 Production 不適合用 Docker Compose？
+
+Docker Compose 讓所有容器跑在同一台 Host 上，這在 PoC 中沒問題，但在生產環境中違反了 HA 的基本前提：
+
+```
+  PoC (所有容器在同一台 Host)               Production (跨實體機部署)
+┌─────────────────────────┐           ┌──────────┐   ┌──────────┐
+│        Single Host       │           │ 實體機 A  │   │ 實體機 B  │
+│ ┌─────┐ ┌─────┐         │           │ Director │   │ Director │
+│ │Dir-1│ │Dir-2│ ← 同機   │           │ (MASTER) │   │ (BACKUP) │
+│ └─────┘ └─────┘   搶占   │           └────┬─────┘   └────┬─────┘
+│ ┌────┐ ┌────┐   意義不大  │                │   L2 Switch   │
+│ │RS-1│ │RS-2│            │           ┌────┴──┬───────┬───┴────┐
+│ └────┘ └────┘            │           │       │       │        │
+│                          │          ┌┴──┐  ┌┴──┐  ┌┴──┐  ┌─┴─┐
+│  Host 掛 = 全部掛 💀     │          │RS1│  │RS2│  │RS3│  │RSN│
+└─────────────────────────┘           └───┘  └───┘  └───┘  └───┘
+                                       各自獨立，任一台掛不影響服務
+```
+
+| 面向 | Docker Compose (PoC) | 生產環境 (多機) |
+|------|:-:|:-:|
+| **單點故障** | ❌ Host 掛了 = 全部掛 | ✅ 每個角色在不同實體機 |
+| **網路隔離** | ⚠️ bridge network (L2 模擬) | ✅ 真正的物理交換機 / VLAN |
+| **VRRP 搶占** | ⚠️ 同 Host 容器互搶意義不大 | ✅ 跨機器 VIP 漂移才有容災意義 |
+| **效能瓶頸** | ⚠️ bridge 有額外 overhead | ✅ 直接走 NIC，零 overhead |
+| **核心升級** | ❌ Host kernel 升級影響全部容器 | ✅ 可逐台滾動升級 |
+| **故障隔離** | ❌ 一個 privileged 容器可影響全部 | ✅ 互不影響 |
+
+### B.3 生產環境的正確做法
+
+**多台實體機 / VM + 自動化部署工具：**
+
+```
+┌──────────────────┐     ┌──────────────────┐
+│   實體機 A         │     │   實體機 B         │
+│   Director-1      │     │   Director-2      │
+│   Keepalived      │     │   Keepalived      │
+│   MASTER (pri=100)│     │   BACKUP (pri=90) │
+│   VIP: .100  ⭐   │     │                   │
+└────────┬─────────┘     └────────┬─────────┘
+         │         L2 Switch       │
+    ┌────┴────┬────────────┬──────┴───┐
+    │         │            │          │
+┌───┴──┐  ┌──┴───┐  ┌────┴─┐  ┌───┴──┐
+│實體機C│  │實體機D│  │實體機E│  │實體機F│
+│ RS-1  │  │ RS-2  │  │ RS-3  │  │ RS-N  │
+│ w=3   │  │ w=2   │  │ w=1   │  │ w=1   │
+│ Nginx │  │ Nginx │  │ Nginx │  │ Nginx │
+│VIP@lo │  │VIP@lo │  │VIP@lo │  │VIP@lo │
+└───────┘  └───────┘  └──────┘  └───────┘
+```
+
+常見部署工具鏈：
+
+| 工具 | 用途 | 適合場景 |
+|------|------|---------|
+| **Ansible** | 批量配置 keepalived.conf, sysctl, nginx | Bare metal / VM |
+| **Terraform + Ansible** | 開 VM + 配置 LVS | 私有雲 (OpenStack, vSphere) |
+| **PXE + Kickstart** | 裸機自動化部署 | 大規模 Data Center |
+| **SaltStack** | 即時配置管理 | 需要即時變更的環境 |
+
+### B.4 現代架構中的 L4 負載均衡方案
+
+在現代架構中，直接手動部署 LVS/IPVS 的場景已經不多。以下是更常見的替代方案，**但它們的底層原理和本 PoC 教的內容一致**：
+
+| 方案 | 層級 | 底層技術 | 適合場景 |
+|------|------|---------|---------|
+| **kube-proxy (ipvs mode)** | L4 | 就是本 PoC 教的 IPVS | K8s 叢集內部 |
+| **MetalLB** | L4 | IPVS + ARP/BGP | K8s bare-metal LoadBalancer |
+| **Cilium (eBPF LB)** | L4 | eBPF 取代 IPVS，更高效 | 高效能 K8s 叢集 |
+| **HAProxy (L4 mode)** | L4 | Userspace proxy | 不想碰 kernel module |
+| **Nginx Stream** | L4 | Userspace proxy | 簡單 TCP/UDP 負載均衡 |
+| **AWS NLB / GCP L4 LB** | L4 | 雲端自有實作 | 雲端環境 |
+| **Keepalived + LVS** | L4 | 本 PoC 方案 | Bare metal 高效能需求 |
+
+```
+你學的 LVS/IPVS 知識在這些場景都用得到：
+
+  本 PoC                    Kubernetes
+┌──────────┐            ┌──────────────────┐
+│ ipvsadm  │            │ kube-proxy       │
+│ wrr 排程  │ ── 相同 ──►│ --proxy-mode=ipvs│
+│ DR 模式   │   原理     │ IPVS + DNAT      │
+│ keepalived│            │ MetalLB (ARP)    │
+└──────────┘            └──────────────────┘
+```
+
+### B.5 結論
+
+| 問題 | 答案 |
+|------|------|
+| Docker Compose 能做 LVS PoC 演練？ | ✅ **完全可以** — kernel 層功能全部正常運作 |
+| Docker Compose 能當 Production LVS？ | ❌ **不適合** — 單 Host 無法實現真正的 HA |
+| Docker Compose 的定位？ | **最佳學習實驗室** — 用最低成本理解 IPVS/DSR/VRRP 原理 |
+| Production LVS 該怎麼做？ | 多台實體機 + Ansible 部署，或直接用 K8s + MetalLB |
+| 學 LVS 有什麼用？ | kube-proxy、MetalLB、Cilium 底層都是同樣的 IPVS 原理 |
+
+> **一句話總結：Docker Compose 是最好的「LVS 教學實驗室」，但不是生產級 LVS 的部署方式。理解原理後，在 Kubernetes 的 kube-proxy (ipvs mode) 和 MetalLB 中會再次看到完全相同的技術。**
 
 ---
 
